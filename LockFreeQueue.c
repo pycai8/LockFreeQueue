@@ -1,5 +1,12 @@
 #include "LockFreeQueue.h"
 
+#define LOG_LOGGER(level, fmt, ...) printf("%s | %s: %s(%d) | " fmt, level, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS);
+#define LOG_DEBUG(fmt, ...) LOG_LOGGER("debug", fmt, ##__VA_ARGS__);
+#define LOG_INFO(fmt, ...) LOG_LOGGER("info", fmt, ##__VA_ARGS__);
+#define LOG_WARN(fmt, ...) LOG_LOGGER("warn", fmt, ##__VA_ARGS__);
+#define LOG_ERROR(fmt, ...) LOG_LOGGER("error", fmt, ##__VA_ARGS__);
+#define LOG_FATAL(fmt, ...) LOG_LOGGER("fatal", fmt, ##__VA_ARGS__);
+
 typedef struct LockFreeElement_t
 {
     LockFreeElement_t* next;
