@@ -1,20 +1,23 @@
 #include "LockFreeQueue.h"
+#include <stdio.h>
+#include <errno.h>
+#include <malloc.h>
 
-#define LOG_LOGGER(level, fmt, ...) printf("%s | %s: %s(%d) | " fmt, level, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS);
+#define LOG_LOGGER(level, fmt, ...) printf("%s | %s: %s(%d) | " fmt, level, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__);
 #define LOG_DEBUG(fmt, ...) LOG_LOGGER("debug", fmt, ##__VA_ARGS__);
 #define LOG_INFO(fmt, ...) LOG_LOGGER("info", fmt, ##__VA_ARGS__);
 #define LOG_WARN(fmt, ...) LOG_LOGGER("warn", fmt, ##__VA_ARGS__);
 #define LOG_ERROR(fmt, ...) LOG_LOGGER("error", fmt, ##__VA_ARGS__);
 #define LOG_FATAL(fmt, ...) LOG_LOGGER("fatal", fmt, ##__VA_ARGS__);
 
-typedef struct LockFreeElement_t
+typedef struct tagLockFreeElement
 {
-    LockFreeElement_t* next;
+    struct tagLockFreeElement* next;
     void* data;
     uint8_t using;
 } LockFreeElement_t;
 
-typedef struct
+typedef struct tagLockFreeQueue
 {
     LockFreeElement_t* head;
     LockFreeElement_t* tail;
@@ -36,7 +39,7 @@ static LockFreeElement_t* mallocElement(LockFreeQueue_t* lfq)
         LockFreeElement_t* e = &lfq->array[i];
         uint8_t using = e->using;
         if (using) continue;
-        if (!__sync_bool_compare_and_swap(e->using, 0, 1)) continue;       
+        if (!__sync_bool_compare_and_swap(&e->using, using, (uint8_t)1)) continue;       
         e->next = 0;
         e->data = 0;
         return e;
