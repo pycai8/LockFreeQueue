@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <malloc.h>
 #include <pthread.h>
+#include <stdlib.h>
+#include <sys/unistd.h>
+#include <sys/prctl.h>
 #include "LockFreeQueue.h"
 
 typedef struct
@@ -12,38 +15,46 @@ typedef struct
 
 void* PushEntry(void* arg)
 {
+    prctl(PR_SET_NAME, "push");
+
     uint64_t lfq = (uint64_t)(unsigned long)arg;
     while (1)
     {
         Test_t* ptr = (Test_t*)malloc(sizeof(Test_t));
         if (!ptr) continue;
         
-        if (lfqPush(lfq, ptr) != 0)
+        if (lfqPush(lfq, (void*)ptr) != 0)
         {
             free(ptr);
         }
     }
+
+    return 0;
 }
 
 void* PopEntry(void* arg)
 {
+    prctl(PR_SET_NAME, "pop");
+
     uint64_t lfq = (uint64_t)(unsigned long)arg;
     while (10)
     {
         Test_t* ptr = 0;
-        if (lfqPop(lfq, &ptr) == 0)
+        if (lfqPop(lfq, (void**)&ptr) == 0)
         {
             free(ptr);
         }
     }
+
+    return 0;
 }
 
 void main(int argc, char** argv)
 {
     if (argc < 4)
     {
-        printf("usage: ./%s queueSize pushThreadCount popThreadCount\n", argv[0]);
-        return -1;
+        printf("usage: %s queueSize pushThreadCount popThreadCount\n", argv[0]);
+        return;
     }
     
     int queueSize = atoi(argv[1]);
@@ -54,7 +65,7 @@ void main(int argc, char** argv)
     if (lfq == 0)
     {
         printf("create lock free queue of size[%d] failed\n", queueSize);
-        return -1;
+        return;
     }
     
     for (int i = 0; i < pushThCnt; i++)
@@ -70,5 +81,5 @@ void main(int argc, char** argv)
     
     printf("running ... \n");
     while (1) sleep(3600);
-    return 0;
+    return;
 }
