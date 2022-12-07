@@ -1,18 +1,16 @@
 #include "LockFreeQueue.h"
 
-#define NULL_ELEMENT 0xffffffffU
-
-typedef struct
+typedef struct LockFreeElement_t
 {
-    uint32_t next;
-    uint32_t using;
-    uint64_t data;
+    LockFreeElement_t* next;
+    void* data;
+    uint8_t using;
 } LockFreeElement_t;
 
 typedef struct
 {
-    uint32_t head;
-    uint32_t tail;
+    LockFreeElement_t* head;
+    LockFreeElement_t* tail;
     uint32_t size;
     LockFreeElement_t array[1];
 } LockFreeQueue_t;
@@ -36,58 +34,56 @@ uint64_t lfqCreate(uint32_t size)
     lfq->size = size;
     for (uint32_t i = 0; i < size; i++)
     {
-        lfq->array[i].next = NULL_ELEMENT;
+        lfq->array[i].next = 0;
         lfq->array[i].using = 0;
         lfq->array[i].data = 0;
     }
     lfq->head = lfq->tail = mallocElement(lfq);
     
 	LOG_DEBUG("create LockFreeQueue with size[%u] success", size);
-	return (uint64_t)(long)lfq;
+	return (uint64_t)(unsigned long)lfq;
 }
 
 int lfqPush(uint64_t handle, void* data)
 {
-	LockFreeQueue_t* lfq = (LockFreeQueue_t*)handle;
+    if (data == 0)
+	{
+		LOG_ERROR("data == 0");
+		return -1;
+	}
+    
+	LockFreeQueue_t* lfq = (LockFreeQueue_t*)(unsigned long)handle;
 	if (lfq == 0)
 	{
 		LOG_ERROR("handle == 0");
 		return -1;
 	}
 
-	if (data == 0)
-	{
-		LOG_ERROR("data == 0");
-		return -1;
-	}
-
-    uint32_t element = mallocElement(lfq);
-    if (element == NULL_ELEMENT)
+    LockFreeElement_t* e = mallocElement(lfq);
+    if (!e)
     {
         LOG_ERROR("queue full");
         return -1;
     }
-    lfq->array[element].data = (uint64_t)(long)data;
+    e->data = data;
     
-    uint32_t tail = lfq->tail;
-    LockFreeElement_t* array = lfq->array;
-	while (1)
-	{
-        uint64_t tmp = __sync_val_compare_and_swap(&array[tail].data, 0, (uint64_t)(long)data);
-        if (tmp == 0)
+    while(1)
+    {
+        // seek tail
+        LockFreeElement_t* tail = lfq->tail;
+        LockFreeElement_t* next = tail->next;
+        if (next)
         {
-            LOG_DEBUG("lfqPush success");
-            freeElement(element);
-            return 0;
+            __sync_bool_compare_and_swap(&lfq->tail, tail, next);
+            continue;
         }
         
-        tail = __sync_val_compare_and_swap(&array[tail].next, NULL_ELEMENT, element);
-        if (tail == NULL_ELEMENT)
+        // push tail
+        if (__sync_bool_compare_and_swap(&tail->next, 0, e))
         {
-            LOG_DEBUG("lfqPush success");
             return 0;
         }
-	}
+    }
 
 	LOG_ERROR("this is impossible");
 	return -1;
@@ -95,39 +91,47 @@ int lfqPush(uint64_t handle, void* data)
 
 int lfqPop(uint64_t handle, void** data)
 {
-	LockFreeQueue_t* lfq = (LockFreeQueue_t*)handle;
+    if (data == 0)
+	{
+		LOG_ERROR("data == 0");
+		return -1;
+	}
+	*data = 0;
+    
+	LockFreeQueue_t* lfq = (LockFreeQueue_t*)(unsigned long)handle;
 	if (lfq == 0)
 	{
 		LOG_ERROR("handle == 0");
 		return -1;
 	}
 
-	if (data == 0)
-	{
-		LOG_ERROR("data == 0");
-		return -1;
-	}
-	*data = 0;
-
     LockFreeElement_t* array = lfq->array;
 	while (1)
 	{
-        uint32_t head = lfq->head;
-        void* ret = array[head].data;
-        uint32_t next = array[head].next;
-        uint32_t tail = lfq->tail;
-    
-        if (head == tail)
+        // seek tail
+        LockFreeElement_t* tail = lfq->tail;
+        LockFreeElement_t* next = tail->next;
+        if (next)
+        {
+            __sync_bool_compare_and_swap(&lfq->tail, tail, next);
+            continue;
+        }
+        
+        // check empty
+        LockFreeElement_t* head = lfq->head;
+        next = head->next;
+        if (!next)
         {
             LOG_ERROR("queue empty");
             return -1;
         }
         
-        uint32_t tmp = __sync_val_compare_and_swap(&lfq->head, head, next);
-        if (tmp == head)
+        // pop head
+        void* tmpData = next->data;
+        if (__sync_bool_compare_and_swap(&lfq->head, head, next))
         {
             freeElement(head);
-            *data = ret;
+            *data = tmpData;
             return 0;
         }
 	}
