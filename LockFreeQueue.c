@@ -15,6 +15,29 @@ typedef struct
     LockFreeElement_t array[1];
 } LockFreeQueue_t;
 
+static void freeElement(LockFreeElement_t* e)
+{
+    e->next = 0;
+    e->data = 0;
+    e->using = 0;
+}
+
+static LockFreeElement_t* mallocElement(LockFreeQueue_t* lfq)
+{
+    for (uint32_t i = 0; i < lfq->size; i++)
+    {
+        LockFreeElement_t* e = &lfq->array[i];
+        uint8_t using = e->using;
+        if (using) continue;
+        if (!__sync_bool_compare_and_swap(e->using, 0, 1)) continue;       
+        e->next = 0;
+        e->data = 0;
+        return e;
+    }
+    
+    return 0;
+}
+
 uint64_t lfqCreate(uint32_t size)
 {
 	if (size == 0)
