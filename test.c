@@ -50,7 +50,7 @@ void* PopEntry(void* arg)
         if (lfqPop(lfq, (void**)&ptr) == 0)
         {
             free(ptr);
-            __sync_sub_and_fetch(g_count, 1);
+            __sync_sub_and_fetch(&g_count, 1);
         }
     }
 
@@ -62,6 +62,7 @@ void main(int argc, char** argv)
     if (argc < 7)
     {
         printf("usage: %s queueCount queueSize pushThreadCount popThreadCount pushSeconds popSeconds \n", argv[0]);
+        printf("       pushSeconds < popSeconds \n");
         return;
     }
     
@@ -103,7 +104,7 @@ void main(int argc, char** argv)
     g_popRunning = 0;
     sleep(1);
     
-    if (g_count == 0) printf("INFO, test success, pushCount - popCount = %lld \n", g_count);
-    else printf("ERROR, test failed, pushCount - popCount = %lld \n", g_count);    
+    if (g_count == 0) printf("INFO, test success, pushCount - popCount = %lld \n", (unsigned long long)g_count);
+    else printf("ERROR, test failed, pushCount - popCount = %lld \n", (unsigned long long)g_count);    
     return;
 }
