@@ -3,7 +3,7 @@
 #include <errno.h>
 #include <malloc.h>
 
-#define LOG_LOGGER(level, fmt, ...) printf("%s | %s: %s(%d) | " fmt "\n", level, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__);
+#define LOG_LOGGER(level, fmt, ...) //printf("%s | %s: %s(%d) | " fmt "\n", level, __FILE__, __FUNCTION__, __LINE__, ##__VA_ARGS__);
 #define LOG_DEBUG(fmt, ...) LOG_LOGGER("debug", fmt, ##__VA_ARGS__);
 #define LOG_INFO(fmt, ...) LOG_LOGGER("info", fmt, ##__VA_ARGS__);
 #define LOG_WARN(fmt, ...) LOG_LOGGER("warn", fmt, ##__VA_ARGS__);
@@ -32,8 +32,8 @@ typedef struct tagLockFreeQueue
 static void freeElement(LockFreeElement_t* e)
 {
     e = CUT_HDR(e);
-    e->next = 0;
-    e->data = 0;
+    //e->next = 0;
+    //e->data = 0;
     e->using = 0;
 }
 
@@ -191,9 +191,6 @@ int lfqPop(uint64_t handle, void** data)
         }
     }
 
-    *data = tmpData;
-    freeElement(head);
-
     while(1)
     {
         // seek tail
@@ -207,6 +204,8 @@ int lfqPop(uint64_t handle, void** data)
         break;
     }
     
+    *data = tmpData;
+    freeElement(head);
     return 0;
 }
 

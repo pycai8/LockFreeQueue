@@ -94,17 +94,17 @@ void main(int argc, char** argv)
         }
     }
     
-    printf("%d threads pushing and %d threads popping ... \n", pushThCnt, popThCnt);
+    printf("every of %d queues: %d threads pushing and %d threads popping ... \n", queueCnt, pushThCnt, popThCnt);
     sleep(pushSeconds);
     
     g_pushRunning = 0;
-    printf("%d threads popping ... \n", popThCnt);
+    printf("every of %d queues: %d threads popping ... \n", queueCnt, popThCnt);
     sleep(popSeconds - pushSeconds);
     
     g_popRunning = 0;
     sleep(1);
     
-    if (g_count == 0) printf("INFO, test success, pushCount - popCount = %lld \n", (unsigned long long)g_count);
-    else printf("ERROR, test failed, pushCount - popCount = %lld \n", (unsigned long long)g_count);    
+    if (g_count == 0) printf("info, test success, pushCount - popCount = %lld \n", (unsigned long long)g_count);
+    else printf("error, test failed, pushCount - popCount = %lld \n", (unsigned long long)g_count);    
     return;
 }
