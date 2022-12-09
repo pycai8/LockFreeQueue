@@ -1,3 +1,5 @@
 # LockFreeQueue
 a lock free queue with fix size.
-it implement multi-thread pushing and multi-thread poping.
+it run on 64bits linux system.
+it base on cas of cpu.
+it implement multi-thread pushing and multi-thread popping.
