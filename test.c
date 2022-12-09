@@ -2,6 +2,8 @@
 #include <malloc.h>
 #include <pthread.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <string.h>
 #include <sys/unistd.h>
 #include <sys/prctl.h>
 #include "LockFreeQueue.h"
@@ -85,12 +87,20 @@ void main(int argc, char** argv)
         for (int i = 0; i < pushThCnt; i++)
         {
             pthread_t th = 0;
-            pthread_create(&th, 0, PushEntry, (void*)(unsigned long)lfq);
+            if (pthread_create(&th, 0, PushEntry, (void*)(unsigned long)lfq))
+            {
+                printf("create the pushing thread failed, errno[%d], errmsg[%s] \n", errno, strerror(errno));
+                return;
+            }
         }
         for (int i = 0; i < popThCnt; i++)
         {
             pthread_t th = 0;
-            pthread_create(&th, 0, PopEntry, (void*)(unsigned long)lfq);
+            if (pthread_create(&th, 0, PopEntry, (void*)(unsigned long)lfq))
+            {
+                printf("create the popping thread failed, errno[%d], errmsg[%s] \n", errno, strerror(errno));
+                return;
+            }
         }
     }
     
