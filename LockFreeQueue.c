@@ -14,6 +14,7 @@ typedef struct tagLockFreeElement
 {
     struct tagLockFreeElement* next;
     void* data;
+    uint16_t count;
     uint8_t using;
 } LockFreeElement_t;
 
@@ -25,8 +26,12 @@ typedef struct tagLockFreeQueue
     LockFreeElement_t array[1];
 } LockFreeQueue_t;
 
+#define ADD_HDR(ptr, count) ((LockFreeElement_t*)((uint64_t)(unsigned long)ptr | ((uint64_t)count) << 48))
+#define CUT_HDR(ptr) ((LockFreeElement_t*)((uint64_t)(unsigned long)ptr & 0xFFFFFFFFFFFFULL))
+
 static void freeElement(LockFreeElement_t* e)
 {
+    e = CUT_HDR(e);
     e->next = 0;
     e->data = 0;
     e->using = 0;
@@ -42,7 +47,8 @@ static LockFreeElement_t* mallocElement(LockFreeQueue_t* lfq)
         if (!__sync_bool_compare_and_swap(&e->using, using, (uint8_t)1)) continue;       
         e->next = 0;
         e->data = 0;
-        return e;
+        e->count = (e->count + 1) % 0xFFFF;
+        return ADD_HDR(e, e->count);
     }
     
     return 0;
@@ -67,9 +73,10 @@ uint64_t lfqCreate(uint32_t size)
     lfq->size = size;
     for (uint32_t i = 0; i < size; i++)
     {
-        lfq->array[i].next = 0;
-        lfq->array[i].using = 0;
+        lfq->array[i].next = 0;    
         lfq->array[i].data = 0;
+        lfq->array[i].count = 0;
+        lfq->array[i].using = 0;
     }
     lfq->head = lfq->tail = mallocElement(lfq);
     
@@ -98,13 +105,15 @@ int lfqPush(uint64_t handle, void* data)
         LOG_ERROR("queue full");
         return -1;
     }
-    e->data = data;
+    CUT_HDR(e)->data = data;
     
+    LockFreeElement_t* tail = 0;
+    LockFreeElement_t* next = 0;
     while(1)
     {
         // seek tail
-        LockFreeElement_t* tail = lfq->tail;
-        LockFreeElement_t* next = tail->next;
+        tail = lfq->tail;
+        next = CUT_HDR(tail)->next;
         if (next)
         {
             __sync_bool_compare_and_swap(&lfq->tail, tail, next);
@@ -114,12 +123,24 @@ int lfqPush(uint64_t handle, void* data)
         // push tail
         if (__sync_bool_compare_and_swap(&tail->next, 0, e))
         {
-            return 0;
+            break;
         }
     }
 
-	LOG_ERROR("this is impossible");
-	return -1;
+    while(1)
+    {
+        // seek tail
+        tail = lfq->tail;
+        next = CUT_HDR(tail)->next;
+        if (next)
+        {
+            __sync_bool_compare_and_swap(&lfq->tail, tail, next);
+            continue;
+        }
+        break;
+    }
+
+	return 0;
 }
 
 int lfqPop(uint64_t handle, void** data)
@@ -138,12 +159,15 @@ int lfqPop(uint64_t handle, void** data)
 		return -1;
 	}
 
-    LockFreeElement_t* array = lfq->array;
+    void* tmpData = 0;
+    LockFreeElement_t* head = 0;
+    LockFreeElement_t* tail = 0;
+    LockFreeElement_t* next = 0;
 	while (1)
 	{
         // seek tail
-        LockFreeElement_t* tail = lfq->tail;
-        LockFreeElement_t* next = tail->next;
+        tail = lfq->tail;
+        next = CUT_HDR(tail)->next;
         if (next)
         {
             __sync_bool_compare_and_swap(&lfq->tail, tail, next);
@@ -151,8 +175,8 @@ int lfqPop(uint64_t handle, void** data)
         }
         
         // check empty
-        LockFreeElement_t* head = lfq->head;
-        next = head->next;
+        head = lfq->head;
+        next = CUT_HDR(head)->next;
         if (!next)
         {
             LOG_ERROR("queue empty");
@@ -160,16 +184,28 @@ int lfqPop(uint64_t handle, void** data)
         }
         
         // pop head
-        void* tmpData = next->data;
+        tmpData = CUT_HDR(next)->data;
         if (__sync_bool_compare_and_swap(&lfq->head, head, next))
         {
-            freeElement(head);
-            *data = tmpData;
-            return 0;
+            break;
         }
 	}
 
-	LOG_ERROR("this is impossible");
-	return -1;
+    while(1)
+    {
+        // seek tail
+        tail = lfq->tail;
+        next = CUT_HDR(tail)->next;
+        if (next)
+        {
+            __sync_bool_compare_and_swap(&lfq->tail, tail, next);
+            continue;
+        }
+        break;
+    }
+    
+    *data = tmpData;
+    freeElement(head);
+    return 0;
 }
 
